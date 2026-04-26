@@ -338,11 +338,15 @@ function compressImage(file, maxW = 1024, quality = 0.7) {
 function toast(msg, kind = '') {
   const host = document.getElementById('toast-host');
   if (!host) return;
+  // 기존 토스트 모두 제거 (잔상 방지)
+  while (host.firstChild) host.removeChild(host.firstChild);
   const el = document.createElement('div');
   el.className = 'toast ' + (kind || '');
   el.textContent = msg;
   host.appendChild(el);
-  setTimeout(() => el.remove(), 2400);
+  setTimeout(() => {
+    if (el.parentNode === host) host.removeChild(el);
+  }, 1800);
 }
 
 // ===== LIGHTBOX =====
