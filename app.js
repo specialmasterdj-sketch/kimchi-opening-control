@@ -442,7 +442,7 @@ function render() {
   if (currentView === 'login') {
     body = viewLogin();
   } else {
-    body = renderShiftToggle() + renderViewBody();
+    body = renderTopNav() + renderShiftToggle() + renderViewBody();
   }
   main.innerHTML = body;
   renderBottomNav();
@@ -463,6 +463,7 @@ function renderViewBody() {
     case 'owner-overview':       return viewOwnerOverview();
     case 'dept-awards':          return viewDeptAwards(currentParams.month);
     case 'eom':                  return viewEOM(currentParams.month);
+    case 'awards':               return viewAwards();
     case 'final-approval':       return viewFinalApproval();
     case 'report':               return viewReport();
     case 'report-dept':          return viewReportDept(currentParams.deptId);
@@ -495,7 +496,12 @@ function renderHeader() {
   hdr.classList.add('with-controls');
   const myName = state.settings.myName || '';
   const lang = state.settings.lang || 'ko';
-  const myPh = lang==='ko'?'내 이름':lang==='es'?'Mi nombre':'My name';
+  const myPh = lang==='ko'?'👤 내 이름 (예: 김철수)'
+              :lang==='es'?'👤 Tu nombre (ej: Juan)'
+              :'👤 Your name (e.g., John)';
+  const myTitle = lang==='ko'?'근무자 본인 이름 — 입력 시 「내 것만」 보기 가능, 체크 기록에 이름 남음'
+                 :lang==='es'?'Tu nombre — habilita "Solo míos" y registra tu nombre'
+                 :'Your name — enables "Mine only" and records your name on checks';
   hdr.innerHTML = `
     <div class="top-row">
       <div class="title-row">
@@ -503,7 +509,7 @@ function renderHeader() {
         <span class="subtitle">${fmtDateKor(todayISO())}</span>
       </div>
       <div class="meta">
-        <input class="my-name-input" placeholder="${myPh}" value="${escapeHtml(myName)}" onchange="setMyName(this.value)">
+        <input class="my-name-input" placeholder="${myPh}" title="${myTitle}" value="${escapeHtml(myName)}" onchange="setMyName(this.value)">
       </div>
     </div>
     <div class="control-row">
@@ -550,26 +556,27 @@ function renderShiftToggle() {
 }
 
 function renderBottomNav() {
+  // 하단 네비 폐지 — 상단 네비로 통합 (renderTopNav)
   const nav = document.getElementById('bottom-nav');
-  if (!state.user) { nav.classList.add('hidden'); nav.innerHTML=''; return; }
-  nav.classList.remove('hidden');
+  if (nav) { nav.classList.add('hidden'); nav.innerHTML=''; }
+}
+function renderTopNav() {
+  if (!state.user) return '';
   const role = getRole(state.user.role);
   const lang = state.settings.lang || 'ko';
-  // 새 모델: 직원=메인+공지, 매니저+오너=메인+공지+보고확인
   const home = role.canApprove ? 'manager-dashboard' : (role.canAssign ? 'supervisor-dashboard' : 'employee-dashboard');
-  let items = [
-    { v: home,      icn: '🏠', lbl: lang==='ko'?'메인':lang==='es'?'Inicio':'Home' },
-    { v: 'notices', icn: '📢', lbl: lang==='ko'?'공지':lang==='es'?'Avisos':'Notices' }
+  const items = [
+    { v: home,             icn: '🏠', lbl: lang==='ko'?'메인':lang==='es'?'Inicio':'Home' },
+    { v: 'notices',        icn: '📢', lbl: lang==='ko'?'공지':lang==='es'?'Avisos':'Notices' },
+    { v: 'owner-overview', icn: '📊', lbl: lang==='ko'?'보고':lang==='es'?'Informe':'Report' },
+    { v: 'awards',         icn: '🏆', lbl: lang==='ko'?'어워드':lang==='es'?'Premios':'Award' }
   ];
-  if (role.canApprove || role.canAssign) {
-    items.push({ v: 'owner-overview', icn: '📊', lbl: lang==='ko'?'보고 확인':lang==='es'?'Informe':'Report' });
-  }
-  nav.innerHTML = items.map(it => `
-    <button class="${currentView === it.v ? 'active' : ''}" onclick="navigate('${it.v}')">
+  return `<nav class="top-nav">${items.map(it => `
+    <button class="${currentView === it.v || (it.v === 'owner-overview' && ['dept-awards','eom'].includes(currentView)) ? 'active' : ''}" onclick="navigate('${it.v}')">
       <span class="icn">${it.icn}</span>
       <span class="lbl">${escapeHtml(it.lbl)}</span>
     </button>
-  `).join('');
+  `).join('')}</nav>`;
 }
 
 // ===== VIEWS =====
@@ -4250,20 +4257,35 @@ function viewOwnerOverview() {
     <h2>${tt.title}</h2>
     <div class="muted small mb-2">${fmtDateKor(date)}</div>
     <div class="overview-list">${cards}</div>
+  `;
+}
 
-    <div class="award-entry-row">
+function viewAwards() {
+  const lang = state.settings.lang || 'ko';
+  const tx = {
+    title: lang==='ko'?'🏆 어워드':lang==='es'?'🏆 Premios':'🏆 Awards',
+    sub:   lang==='ko'?'월간 직원 어워드 — 부문별 업무왕 + 이달의 직원':lang==='es'?'Premios mensuales':'Monthly employee awards',
+    dept_t: lang==='ko'?'부문별 업무왕':lang==='es'?'Top por Departamento':'Department Top',
+    dept_d: lang==='ko'?`매월 부문별 1-3등 자동 산정 ($${AWARD_BONUS[1]} / $${AWARD_BONUS[2]} / $${AWARD_BONUS[3]} · 3개월 연속 +$${AWARD_BONUS.streak})`:`Monthly 1st/2nd/3rd auto`,
+    eom_t:  lang==='ko'?'Employee of the Month':'Employee of the Month',
+    eom_d:  lang==='ko'?`매장별 1명 — 관리자 추천 투표 ($${EOM_BONUS} · 마감: 매월 말일 -3일)`:`Store 1st — manager nomination`
+  };
+  return `
+    <h2>${tx.title}</h2>
+    <div class="muted small mb-2">${tx.sub}</div>
+    <div class="award-entry-row" style="grid-template-columns:1fr;">
       <button class="award-entry-btn dept" onclick="navigate('dept-awards')">
         <span class="award-icon">🏆</span>
         <div>
-          <div class="award-title">${lang==='ko'?'부문별 업무왕':lang==='es'?'Top por Depto':'Department Top'}</div>
-          <div class="award-desc">${lang==='ko'?`이달의 1-3등 ($200/$100/$50)`:`Monthly 1-3rd`}</div>
+          <div class="award-title">${tx.dept_t}</div>
+          <div class="award-desc">${tx.dept_d}</div>
         </div>
       </button>
       <button class="award-entry-btn eom" onclick="navigate('eom')">
         <span class="award-icon">🌟</span>
         <div>
-          <div class="award-title">${lang==='ko'?'Employee of the Month':'Employee of the Month'}</div>
-          <div class="award-desc">${lang==='ko'?`매장 1위 ($${EOM_BONUS})`:`Store 1st ($${EOM_BONUS})`}</div>
+          <div class="award-title">${tx.eom_t}</div>
+          <div class="award-desc">${tx.eom_d}</div>
         </div>
       </button>
     </div>

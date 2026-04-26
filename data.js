@@ -1103,9 +1103,9 @@ const KMOCS_DEPT_EXTRAS_I18N = {
   meat: {
     // 출처: MEAT_OPS_MANUAL (매뉴얼 Table 0/Table 13-14 기반)
     opening: {
-      ko: ['기존 제품들 진열 정리','기존 제품들 가격표 확인','진열 매대 제품 리스탁','매대 제품 종류별 통합 여부 확인','제품 유통기한 및 폐기 확인','벤더별 제품 오더 확인','매장 바닥 및 디스플레이 기구 및 장비 청결','냉장·냉동 온도 확인'],
-      en: ['Arrange existing product displays','Verify existing product price tags','Restock display shelves','Verify product consolidation by category','Check expiration dates & disposal','Verify orders by vendor','Floor, display fixtures & equipment cleanliness','Refrigerator / freezer temperature check'],
-      es: ['Acomodo de productos en exhibición','Verificar etiquetas de precio','Reabastecer estantes','Verificar consolidación por categoría','Verificar fechas de caducidad y desecho','Verificar pedidos por proveedor','Limpieza de piso, vitrinas y equipo','Verificar temperatura refrigerador / congelador']
+      ko: ['기존 제품들 진열 정리','기존 제품들 가격표 확인','진열 매대 제품 리스탁','매대 제품 종류별 통합 여부 확인','제품 유통기한 및 폐기 확인','스페셜 컷 메뉴 전시 여부','벤더별 제품 오더 확인','매장 바닥 및 디스플레이 기구 및 장비 청결','냉장·냉동 온도 확인'],
+      en: ['Arrange existing product displays','Verify existing product price tags','Restock display shelves','Verify product consolidation by category','Check expiration dates & disposal','Special cut menu display check','Verify orders by vendor','Floor, display fixtures & equipment cleanliness','Refrigerator / freezer temperature check'],
+      es: ['Acomodo de productos en exhibición','Verificar etiquetas de precio','Reabastecer estantes','Verificar consolidación por categoría','Verificar fechas de caducidad y desecho','Verificar exhibición de cortes especiales','Verificar pedidos por proveedor','Limpieza de piso, vitrinas y equipo','Verificar temperatura refrigerador / congelador']
     },
     closing: {
       ko: ['최종 온도 기록 (온도기록부)','전시 육류 모두 덮개/포장','모든 육류 냉장고 보관','모든 도마/칼 세척/소독','모든 작업대 닦기/소독','진열장 내부/외부 청소','바닥 쓸고 닦기','쓰레기 배출 및 쓰레기통 소독','워크인 냉장고 FIFO 정리','특이사항 보고','주간 KPI 기입','진열장 조명 끄기'],

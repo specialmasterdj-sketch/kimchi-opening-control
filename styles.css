@@ -2087,6 +2087,43 @@ a.link:hover { text-decoration: underline; }
 }
 .manual-ref-card-eom { background: #fafafa; border: 1px dashed #d1d5db; opacity: 0.85; }
 
+/* 상단 네비 (4개 — Home/Notices/Report/Award) */
+.top-nav {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.3rem;
+  margin: 0.4rem 0 0.6rem;
+  padding: 0.3rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.6rem;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+.top-nav button {
+  background: transparent;
+  border: none;
+  padding: 0.45rem 0.2rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #6b7280;
+  transition: background 0.08s;
+}
+.top-nav button .icn { font-size: 1.1rem; line-height: 1; }
+.top-nav button:hover { background: #f3f4f6; }
+.top-nav button.active {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 /* 헤더 로고 */
 .app-logo {
   display: block;
