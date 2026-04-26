@@ -1305,7 +1305,7 @@ a.link:hover { text-decoration: underline; }
 }
 .store-pick-name { font-weight: 700; }
 
-/* 내 이름 입력 (헤더) */
+/* 내 이름 입력 (헤더) — legacy, 더 이상 사용 안 함 */
 .my-name-input {
   background: rgba(255,255,255,0.95);
   border: none;
@@ -1318,6 +1318,124 @@ a.link:hover { text-decoration: underline; }
   text-align: center;
 }
 .my-name-input::placeholder { color: #9ca3af; font-weight: 500; }
+
+/* 헤더 사용자 정체성 pill */
+.user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.7rem;
+  border: none;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.user-pill .ico { font-size: 0.95rem; }
+.user-pill .name { letter-spacing: -0.01em; }
+.user-pill .caret { font-size: 0.7rem; opacity: 0.7; margin-left: 0.1rem; }
+.user-pill.set {
+  background: rgba(255,255,255,0.95);
+  color: #111827;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}
+.user-pill.set:hover {
+  background: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+.user-pill.empty {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 2px solid #dc2626;
+  animation: pill-pulse 1.6s infinite;
+}
+.user-pill.empty:hover { background: #fee2e2; }
+@keyframes pill-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.5); }
+  50%      { box-shadow: 0 0 0 7px rgba(220, 38, 38, 0); }
+}
+
+/* 환영 모달 */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  animation: backdrop-in 0.18s ease-out;
+}
+@keyframes backdrop-in {
+  from { opacity: 0; } to { opacity: 1; }
+}
+.modal-card {
+  background: #fff;
+  border-radius: 0.9rem;
+  padding: 1.4rem 1.2rem;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+  animation: card-in 0.2s ease-out;
+}
+@keyframes card-in {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+.modal-card h2 { margin: 0; font-size: 1.1rem; color: #111827; }
+.welcome-modal .input {
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 0.7rem 0.8rem;
+}
+
+/* 스페셜 노트 — 지시→수신 attribution */
+.note-attrib {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  margin: 0.4rem 0 0.5rem;
+  padding: 0.4rem 0.55rem;
+  background: #f9fafb;
+  border-radius: 0.45rem;
+  border-left: 3px solid #3b82f6;
+  font-size: 0.78rem;
+}
+.attrib-from, .attrib-to {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.attrib-from {
+  background: #fef3c7;
+  color: #92400e;
+}
+.attrib-to {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.attrib-arrow {
+  color: #6b7280;
+  font-size: 0.72rem;
+}
+.attrib-done {
+  background: #d1fae5;
+  color: #065f46;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-weight: 700;
+  margin-left: auto;
+}
+.special-note.done .note-attrib {
+  border-left-color: #10b981;
+  background: #f0fdf4;
+}
 
 /* 내 것만 토글 */
 .my-only-toggle {

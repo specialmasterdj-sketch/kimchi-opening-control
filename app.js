@@ -580,6 +580,21 @@ function renderHeader() {
   const myTitle = lang==='ko'?'근무자 본인 이름 — 입력 시 「내 것만」 보기 가능, 체크 기록에 이름 남음'
                  :lang==='es'?'Tu nombre — habilita "Solo míos" y registra tu nombre'
                  :'Your name — enables "Mine only" and records your name on checks';
+  // 사용자 정체성 pill — 이름 있으면 명확히, 없으면 빨강 깜빡 강조
+  const userPillHtml = myName
+    ? `<button class="user-pill set" onclick="openNameModal()" title="${
+        lang==='ko'?'이름 변경':lang==='es'?'Cambiar nombre':'Change name'
+      }">
+        <span class="ico">👤</span>
+        <span class="name">${escapeHtml(myName)}</span>
+        <span class="caret">▾</span>
+      </button>`
+    : `<button class="user-pill empty" onclick="openNameModal()">
+        <span class="ico">⚠️</span>
+        <span class="name">${
+          lang==='ko'?'이름 입력 필요':lang==='es'?'Ingresa tu nombre':'Enter your name'
+        }</span>
+      </button>`;
   hdr.innerHTML = `
     <div class="top-row">
       <div class="title-row">
@@ -587,7 +602,7 @@ function renderHeader() {
         <span class="subtitle">${fmtDateKor(todayISO())}</span>
       </div>
       <div class="meta">
-        <input class="my-name-input" placeholder="${myPh}" title="${myTitle}" value="${escapeHtml(myName)}" onchange="setMyName(this.value)">
+        ${userPillHtml}
       </div>
     </div>
     <div class="control-row">
@@ -597,6 +612,61 @@ function renderHeader() {
       ${langSwitcherHtml()}
     </div>
   `;
+}
+
+// ===== 이름 입력 모달 =====
+function openNameModal() {
+  const lang = state.settings.lang || 'ko';
+  const cur = state.settings.myName || '';
+  const isFirst = !cur;
+  const labels = {
+    title:    lang==='ko'?(isFirst?'환영합니다 — 본인 이름을 입력해주세요':'이름 변경'):lang==='es'?(isFirst?'Bienvenido — ingresa tu nombre':'Cambiar nombre'):(isFirst?'Welcome — please enter your name':'Change name'),
+    desc:     lang==='ko'?'이 이름은 모든 지시·답변·체크 기록에 남습니다. 정확한 이름을 입력해주세요.':lang==='es'?'Este nombre se registra en todas las acciones.':'This name will be recorded on all actions you take.',
+    ph:       lang==='ko'?'예: 김철수':lang==='es'?'ej: Juan Pérez':'e.g., John Smith',
+    save:     lang==='ko'?'저장':lang==='es'?'Guardar':'Save',
+    cancel:   lang==='ko'?'취소':lang==='es'?'Cancelar':'Cancel'
+  };
+  const host = document.getElementById('modal-host');
+  if (!host) return;
+  host.innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this){closeNameModal()}">
+      <div class="modal-card welcome-modal">
+        <h2>${escapeHtml(labels.title)}</h2>
+        <p class="muted small mt-1 mb-2">${escapeHtml(labels.desc)}</p>
+        <input id="welcome-name-input" class="input" placeholder="${labels.ph}" value="${escapeHtml(cur)}" autofocus>
+        <div class="row" style="gap:0.5rem;margin-top:0.8rem;">
+          <button class="btn btn-success" style="flex:1;" onclick="saveNameFromModal()">${escapeHtml(labels.save)}</button>
+          ${isFirst?'':`<button class="btn" onclick="closeNameModal()">${escapeHtml(labels.cancel)}</button>`}
+        </div>
+      </div>
+    </div>
+  `;
+  // Enter로 저장
+  setTimeout(() => {
+    const input = document.getElementById('welcome-name-input');
+    if (input) {
+      input.focus();
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') saveNameFromModal();
+      });
+    }
+  }, 50);
+}
+function closeNameModal() {
+  const host = document.getElementById('modal-host');
+  if (host) host.innerHTML = '';
+}
+function saveNameFromModal() {
+  const input = document.getElementById('welcome-name-input');
+  const val = (input && input.value || '').trim();
+  const lang = state.settings.lang || 'ko';
+  if (!val) {
+    toast(lang==='ko'?'이름을 입력해주세요':'Enter your name', 'error');
+    return;
+  }
+  setMyName(val);
+  closeNameModal();
+  toast(lang==='ko'?`✅ ${val}님 환영합니다`:lang==='es'?`✅ ¡Bienvenido, ${val}!`:`✅ Welcome, ${val}!`, 'success');
 }
 
 function langSwitcherHtml() {
@@ -1559,12 +1629,22 @@ function viewDeptDetail(deptId) {
       </div>
     ` : `<div class="finish-done-banner">✓ ${time} ${who}</div>`;
 
-    const toLabel = it.assignee ? `<span class="order-to">→ ${escapeHtml(it.assignee)}</span>` : '';
+    const fromName = it.createdBy || '관리자';
+    const toName = it.assignee || (state.settings.lang==='ko'?'전체':state.settings.lang==='es'?'todos':'all');
+    const fromIco = '👨‍💼';
+    const toIco = '🧑‍🔧';
+    const arrowLbl = state.settings.lang==='ko'?'지시 → 수신':state.settings.lang==='es'?'asignó →':'assigned →';
     return `
       <div class="special-note ${done?'done':''}">
         <div class="note-head">
           <span class="order-bullet">${done?'🟢':'📝'}</span>
-          <span class="note-title">${state.settings.lang==='ko'?'스페셜 노트':'Note'} ${toLabel}</span>
+          <span class="note-title">${state.settings.lang==='ko'?'스페셜 노트':'Note'}</span>
+        </div>
+        <div class="note-attrib">
+          <span class="attrib-from"><span class="aico">${fromIco}</span><span class="alabel">${escapeHtml(fromName)}</span></span>
+          <span class="attrib-arrow">${escapeHtml(arrowLbl)}</span>
+          <span class="attrib-to"><span class="aico">${toIco}</span><span class="alabel">${escapeHtml(toName)}</span></span>
+          ${done && it.completedByName ? `<span class="attrib-done">✓ ${escapeHtml(it.completedByName)} · ${time}</span>` : ''}
         </div>
         <div class="msg-thread">${msgsHtml}</div>
         ${replyArea}
@@ -1662,17 +1742,25 @@ function submitAddOrder(taskId) {
   const text = (document.getElementById('add-order-text')||{}).value || '';
   const to = (document.getElementById('add-order-to')||{}).value || '';
   if (!text.trim()) { toast(state.settings.lang==='ko'?'지시 내용을 입력하세요':'Enter order text', 'error'); return; }
+  // 지시자 이름은 myName 우선 (state.user.name은 '👤' 기본값일 수 있음)
+  const issuer = (state.settings.myName || '').trim() || state.user?.name || '관리자';
+  if (!state.settings.myName) {
+    // 이름 없이 지시 못 함 — 입력 유도
+    toast(state.settings.lang==='ko'?'⚠️ 먼저 우측 상단에 본인 이름을 입력해주세요':'⚠️ Enter your name first (top right)', 'error');
+    return;
+  }
   updateAssignment(taskId, t => {
     const id = 'x' + Date.now();
     t.checklist = t.checklist || [];
     t.checklist.push({
       id, text: text.trim(), isExtra: true, assignee: to.trim(),
       completed: false, completedAt: null, photos: [], hasIssue: false, issueNote: '',
-      createdBy: state.user?.name || '',
+      createdBy: issuer,
+      createdAt: Date.now(),
       messages: [{
         id: 'm' + Date.now(),
         by: 'order',
-        byName: state.user?.name || '관리자',
+        byName: issuer,
         text: text.trim(),
         photo: null,
         ts: Date.now()
@@ -4481,13 +4569,17 @@ async function init() {
   carryOverPendingFromYesterday();
   // 로그인 페이지 폐지 — 자동 default user (owner) 진입.
   // 디바이스가 매장에 고정되어 있다고 가정. 매장은 헤더 드롭다운에서 변경.
-  // 직원 이름은 task 작업 시 입력. 권한 분리는 백엔드/인증 통합 시점에 재도입.
+  // 직원 이름은 첫 진입 시 모달로 입력 (state.settings.myName).
   if (!state.user) {
     state.user = { name: '👤', role: 'owner' };
     if (!state.staff.some(s => s.name === '👤')) {
       state.staff.push({ id: uid(), name: '👤', role: 'owner' });
     }
     saveState();
+  }
+  // 첫 진입 시 본인 이름 입력 강제
+  if (!state.settings.myName) {
+    setTimeout(() => openNameModal(), 400);
   }
 
   // ===== Firebase 동기화 초기화 =====
