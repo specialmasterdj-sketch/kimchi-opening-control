@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#dc2626">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="오프닝 컨트롤">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>김치마트 오프닝/클로징 컨트롤 | Kimchi Mart Control</title>
+<script>
+  // 항상 최신 CSS/JS를 받도록 timestamp 쿼리 강제 (캐시 무효화)
+  (function() {
+    var t = '?t=' + Date.now();
+    document.write('<link rel="stylesheet" href="styles.css' + t + '">');
+  })();
+</script>
+</head>
+<body>
+
+<div id="app">
+  <header id="app-header"></header>
+  <main id="app-main"></main>
+  <nav id="bottom-nav" class="hidden"></nav>
+</div>
+
+<div id="toast-host"></div>
+<div id="modal-host"></div>
+<div id="lightbox-host"></div>
+
+<noscript>
+  <div style="padding:2rem;text-align:center;">
+    이 앱은 자바스크립트가 필요합니다.<br>
+    Please enable JavaScript to use this application.
+  </div>
+</noscript>
+
+<script>
+  (function() {
+    var t = '?t=' + Date.now();
+    document.write('<script src="data.js' + t + '"><\/script>');
+    document.write('<script src="app.js' + t + '"><\/script>');
+  })();
+</script>
+
+<script>
+  // 새 빌드 자동 감지 → 토스트 후 새로고침
+  // (HEAD 요청으로 파일들의 size/etag/last-modified 비교)
+  (function() {
+    var FILES = ['index.html', 'app.js', 'data.js', 'styles.css'];
+    var lastSig = {};
+    var notified = false;
+    var ready = false;
+
+    function getSig(res) {
+      return (res.headers.get('content-length') || '') + '|' +
+             (res.headers.get('etag') || '') + '|' +
+             (res.headers.get('last-modified') || '');
+    }
+
+    async function snapshot() {
+      for (var i = 0; i < FILES.length; i++) {
+        var f = FILES[i];
+        try {
+          var res = await fetch(f + '?_=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+          lastSig[f] = getSig(res);
+        } catch (e) {}
+      }
+      ready = true;
+    }
+
+    async function check() {
+      if (notified || !ready) return;
+      for (var i = 0; i < FILES.length; i++) {
+        var f = FILES[i];
+        try {
+          var res = await fetch(f + '?_=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+          var sig = getSig(res);
+          if (lastSig[f] && sig && sig !== lastSig[f]) {
+            notified = true;
+            if (typeof toast === 'function') {
+              toast('새 버전 감지 — 1.5초 후 새로고침합니다', 'success');
+            }
+            setTimeout(function() { location.reload(); }, 1500);
+            return;
+          }
+        } catch (e) {}
+      }
+    }
+
+    window.addEventListener('load', function() {
+      snapshot().then(function() {
+        setInterval(check, 60 * 1000); // 60초마다 폴링
+      });
+    });
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') check();
+    });
+    window.addEventListener('focus', check);
+  })();
+</script>
+</body>
+</html>
