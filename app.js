@@ -100,11 +100,85 @@ function isShiftLocked(date, shift) {
 function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (window.KMOCS_FB && KMOCS_FB.isInitialized()) {
+      KMOCS_FB.pushState(state);
+    }
   } catch (e) {
     if (e.name === 'QuotaExceededError') {
       toast('저장 공간이 가득 찼습니다. 오래된 데이터를 정리하세요.', 'error');
     } else { console.error(e); }
   }
+}
+
+// Firestore에서 받은 remote state(사진은 __local_only__ 플레이스홀더)와
+// local state의 사진(base64)을 병합. ID 매칭으로 사진 복원.
+function mergeRemoteWithLocalPhotos(remote, local) {
+  if (!remote) return local;
+  const merged = JSON.parse(JSON.stringify(remote));
+  if (!local) return merged;
+
+  function restorePhoto(remoteVal, localVal) {
+    if (remoteVal === '__local_only__' && typeof localVal === 'string' && localVal.startsWith('data:')) {
+      return localVal;
+    }
+    return remoteVal;
+  }
+
+  // 1) assignments[date][].checklist[].photo + .messages[].photo
+  if (merged.assignments && local.assignments) {
+    Object.keys(merged.assignments).forEach(date => {
+      const rTasks = merged.assignments[date] || [];
+      const lTasks = (local.assignments && local.assignments[date]) || [];
+      const lById = {};
+      lTasks.forEach(t => { if (t && t.id) lById[t.id] = t; });
+      rTasks.forEach(rt => {
+        const lt = lById[rt.id];
+        if (!lt) return;
+        const litById = {};
+        (lt.checklist || []).forEach(it => { if (it && it.id) litById[it.id] = it; });
+        (rt.checklist || []).forEach(rit => {
+          const lit = litById[rit.id];
+          if (!lit) return;
+          if (rit.photo) rit.photo = restorePhoto(rit.photo, lit.photo);
+          if (Array.isArray(rit.messages) && Array.isArray(lit.messages)) {
+            const lmById = {};
+            lit.messages.forEach(m => { if (m && m.id) lmById[m.id] = m; });
+            rit.messages.forEach(rm => {
+              const lm = lmById[rm.id];
+              if (lm && rm.photo) rm.photo = restorePhoto(rm.photo, lm.photo);
+            });
+          }
+        });
+      });
+    });
+  }
+
+  // 2) notices[].photos[]
+  function mergePhotosArray(rArr, lArr) {
+    if (!Array.isArray(rArr) || !Array.isArray(lArr)) return;
+    rArr.forEach((rp, i) => {
+      if (rp === '__local_only__' && typeof lArr[i] === 'string') rArr[i] = lArr[i];
+    });
+  }
+  if (Array.isArray(merged.notices) && Array.isArray(local.notices)) {
+    const lById = {};
+    local.notices.forEach(n => { if (n && n.id) lById[n.id] = n; });
+    merged.notices.forEach(rn => {
+      const ln = lById[rn.id];
+      if (ln) mergePhotosArray(rn.photos, ln.photos);
+    });
+  }
+  // 3) freeReports[].photos[]
+  if (Array.isArray(merged.freeReports) && Array.isArray(local.freeReports)) {
+    const lById = {};
+    local.freeReports.forEach(r => { if (r && r.id) lById[r.id] = r; });
+    merged.freeReports.forEach(rr => {
+      const lr = lById[rr.id];
+      if (lr) mergePhotosArray(rr.photos, lr.photos);
+    });
+  }
+
+  return merged;
 }
 
 // ===== UTIL =====
@@ -4402,7 +4476,7 @@ function carryOverPendingFromYesterday() {
   return carried;
 }
 
-function init() {
+async function init() {
   cleanupOldData();
   carryOverPendingFromYesterday();
   // 로그인 페이지 폐지 — 자동 default user (owner) 진입.
@@ -4415,6 +4489,40 @@ function init() {
     }
     saveState();
   }
+
+  // ===== Firebase 동기화 초기화 =====
+  if (window.KMOCS_FB) {
+    try {
+      KMOCS_FB.init();
+      if (KMOCS_FB.isInitialized()) {
+        // 1) 원격 상태 1회 fetch — 다른 기기에서 갱신된 데이터 있으면 받아옴
+        const remote = await KMOCS_FB.fetchStateOnce();
+        if (remote && remote.version) {
+          state = mergeRemoteWithLocalPhotos(remote, state);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        } else {
+          // 처음이면 로컬을 원격에 푸시
+          KMOCS_FB.pushState(state);
+        }
+        // 2) 실시간 구독 — 다른 기기 변경이 푸시되면 자동 머지+재렌더
+        KMOCS_FB.subscribeState((rstate, meta) => {
+          const newState = mergeRemoteWithLocalPhotos(rstate, state);
+          state = newState;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          if (typeof render === 'function') render();
+          if (typeof toast === 'function') {
+            const by = (meta && meta.updatedBy) || '다른 기기';
+            toast('🔄 ' + by + ' 변경 동기화', 'info');
+          }
+        });
+        KMOCS_FB.markReady();
+        console.log('[KMOCS] Firebase 동기화 활성');
+      }
+    } catch (e) {
+      console.warn('[KMOCS] Firebase 동기화 초기화 실패 — 로컬만 동작', e);
+    }
+  }
+
   navigate('manager-dashboard');
 }
 document.addEventListener('DOMContentLoaded', init);

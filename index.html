@@ -38,9 +38,15 @@
   </div>
 </noscript>
 
+<!-- Firebase SDK (compat 빌드 — script-tag 환경) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js"></script>
+
 <script>
   (function() {
     var t = '?t=' + Date.now();
+    document.write('<script src="firebase.js' + t + '"><\/script>');
     document.write('<script src="data.js' + t + '"><\/script>');
     document.write('<script src="app.js' + t + '"><\/script>');
   })();
