@@ -3921,11 +3921,73 @@ function viewDeptAwards(month) {
 }
 
 // ============================================================
-//  Employee of the Month (매장별 1명)
-//  점수 = (업무왕 점수 평균) × 부문 다양성 배수
+//  Employee of the Month (매장별 1명) — 추천 기반 + 자동 점수 참고
+//  보너스 $300 / 추천 마감: 매달 말일 -3일
+//  추천 권한: manager / asst_manager / supervisor / asst_supervisor
+//  평가 요소(정성): 신규 메뉴 개발, 타 지점 교류, 신규 직원 교육,
+//                   멤버 관계, 근속, 업무 성과
 // ============================================================
 
-const EOM_BONUS = 50;
+const EOM_BONUS = 300;
+const EOM_NOMINATOR_ROLES = ['manager', 'asst_manager', 'supervisor', 'asst_supervisor'];
+
+// 그 달의 추천 마감 (말일 - 3일) 23:59:59
+function getEOMDeadline(month) {
+  // month = 'YYYY-MM'
+  const [y, m] = month.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate(); // 그 달 마지막 날짜
+  const dlDate = new Date(y, m - 1, lastDay - 3, 23, 59, 59, 999);
+  return dlDate.getTime();
+}
+
+function isEOMNominationOpen(month) {
+  return Date.now() <= getEOMDeadline(month);
+}
+
+function getEOMNominations(month, store) {
+  state.eomNominations = state.eomNominations || {};
+  const key = month + '|' + store;
+  return state.eomNominations[key] || [];
+}
+
+function addEOMNomination(month, store, recommendee, reason) {
+  if (!isEOMNominationOpen(month)) return { ok: false, error: 'closed' };
+  if (!recommendee) return { ok: false, error: 'no_recommendee' };
+  const role = state.user && getRole(state.user.role);
+  const isOwner = state.user?.role === 'owner';
+  if (!isOwner && (!role || !EOM_NOMINATOR_ROLES.includes(state.user?.role))) {
+    return { ok: false, error: 'no_permission' };
+  }
+  state.eomNominations = state.eomNominations || {};
+  const key = month + '|' + store;
+  const list = state.eomNominations[key] || (state.eomNominations[key] = []);
+  // 1인 1추천 (같은 추천자가 같은 달 중복 추천 시 갱신)
+  const myName = state.settings.myName || state.user?.name || '익명';
+  const existing = list.findIndex(n => n.recommender === myName);
+  const entry = {
+    id: 'nom' + Date.now(),
+    recommender: myName,
+    recommenderRole: state.user?.role,
+    recommendee,
+    reason: (reason || '').trim(),
+    ts: Date.now()
+  };
+  if (existing >= 0) list[existing] = entry;
+  else list.push(entry);
+  saveState();
+  return { ok: true };
+}
+
+function tallyEOMVotes(month, store) {
+  const noms = getEOMNominations(month, store);
+  const tally = {};
+  noms.forEach(n => {
+    if (!tally[n.recommendee]) tally[n.recommendee] = { name: n.recommendee, votes: 0, reasons: [] };
+    tally[n.recommendee].votes++;
+    if (n.reason) tally[n.recommendee].reasons.push({ by: n.recommender, role: n.recommenderRole, reason: n.reason });
+  });
+  return Object.values(tally).sort((a, b) => b.votes - a.votes);
+}
 
 function getEOMCandidates(store, month) {
   // 매장의 모든 활동 직원 모음
@@ -3963,61 +4025,131 @@ function viewEOM(month) {
   const lang = state.settings.lang || 'ko';
   const store = state.settings.store;
   const m = month || (new Date()).toISOString().slice(0, 7);
+  const dl = getEOMDeadline(m);
+  const open = isEOMNominationOpen(m);
+  const role = state.user && getRole(state.user.role);
+  const canNominate = state.user?.role === 'owner' || EOM_NOMINATOR_ROLES.includes(state.user?.role);
+  const myName = state.settings.myName || state.user?.name || '';
+  const myExisting = getEOMNominations(m, store).find(n => n.recommender === myName);
+
   const tx = {
-    title: lang==='ko'?`🌟 Employee of the Month — ${m}`:`🌟 Employee of the Month — ${m}`,
-    sub:   lang==='ko'?`${store} 매장 / 1위 $${EOM_BONUS} · 점수 = 부문 평균 × 다양성 배수`:`${store} / 1st $${EOM_BONUS}`,
-    noData:lang==='ko'?'활동 없음':'No activity',
-    runners:lang==='ko'?'준 우승':'Runners-up',
+    title: `🌟 Employee of the Month — ${m}`,
+    sub:   `${store} · 보너스 $${EOM_BONUS} · 추천 마감 ${fmtDateTime(dl)}`,
+    sectionVotes: lang==='ko'?'📊 추천 투표 현황':'📊 Nominations',
+    sectionAuto:  lang==='ko'?'📈 자동 점수 (참고)':'📈 Auto score (reference)',
+    sectionForm:  lang==='ko'?'✍️ 내 추천':'✍️ My nomination',
+    closed: lang==='ko'?'🔒 추천 마감됨':'🔒 Nominations closed',
+    open:   lang==='ko'?`⏳ 추천 가능 (${Math.ceil((dl - Date.now())/(86400000))}일 남음)`:`⏳ Open`,
+    noVotes: lang==='ko'?'아직 추천 없음':'No nominations yet',
+    noAuto: lang==='ko'?'활동 없음':'No activity',
+    pickPh: lang==='ko'?'추천할 직원 이름':'Employee name',
+    reasonPh: lang==='ko'?'추천 이유 (신규 메뉴 개발, 타 지점 교류, 신규 직원 교육, 멤버 관계, 근속 등)':'Reason',
+    submit: lang==='ko'?'추천 보내기':'Submit nomination',
+    update: lang==='ko'?'내 추천 수정':'Update my nomination',
+    nominateBy: lang==='ko'?'추천 권한: 매니저 / 어시스턴트 매니저 / 수퍼바이저 / 어시스턴트 수퍼바이저 / 오너':'Nominators: managers + supervisors',
+    cantNom: lang==='ko'?'추천 권한이 없습니다':'No permission to nominate',
     deptCount:lang==='ko'?'기여 부문':'Depts',
-    avgScore:lang==='ko'?'평균 점수':'Avg score',
-    multi:lang==='ko'?'다양성 배수':'Diversity'
+    avgScore:lang==='ko'?'평균 점수':'Avg',
+    multi:lang==='ko'?'다양성':'Diversity'
   };
 
-  const cands = getEOMCandidates(store, m);
-  if (cands.length === 0) {
-    return `
-      <button class="btn btn-sm" onclick="goBack()">← ${escapeHtml(L('btn_back'))}</button>
-      <h2 class="mt-2">${tx.title}</h2>
-      <div class="muted small mb-2">${tx.sub}</div>
-      <div class="empty"><div class="ico">📭</div><p>${tx.noData}</p></div>
-    `;
-  }
-  const winner = cands[0];
-  const runners = cands.slice(1, 4);
-  const winnerHtml = `
+  // 추천 투표 결과
+  const tally = tallyEOMVotes(m, store);
+  const winner = tally[0];
+  const winnerHtml = winner && !open ? `
     <div class="eom-winner">
       <div class="eom-crown">👑</div>
       <h3 class="eom-name">${escapeHtml(winner.name)}</h3>
       <div class="eom-bonus">$${EOM_BONUS}</div>
-      <div class="eom-stats">
-        ${tx.deptCount} <b>${winner.deptCount}</b> · ${tx.avgScore} <b>${winner.avgScore}</b> · ${tx.multi} <b>×${winner.diversityMultiplier}</b>
-      </div>
-      <div class="eom-final">최종 점수 <b>${winner.finalScore}</b></div>
+      <div class="muted small">${winner.votes} ${lang==='ko'?'표':'votes'}</div>
     </div>
-  `;
-  const runnersHtml = runners.length > 0 ? `
-    <div class="card mt-2">
-      <h3>${tx.runners}</h3>
-      ${runners.map((c, i) => `
+  ` : '';
+
+  const votesHtml = tally.length === 0
+    ? `<div class="muted small" style="padding:0.5rem;">${tx.noVotes}</div>`
+    : tally.map((t, i) => `
         <div class="award-row">
-          <span class="award-rank">${['🥈','🥉','4️⃣'][i]}</span>
+          <span class="award-rank">${['🥇','🥈','🥉'][i] || (i+1)}</span>
+          <div class="award-body">
+            <b>${escapeHtml(t.name)}</b> <span class="muted small">${t.votes}${lang==='ko'?'표':' votes'}</span>
+            ${t.reasons.length > 0 ? `<div class="muted small" style="margin-top:0.2rem;">${t.reasons.slice(0,3).map(r=>`<div>· "${escapeHtml(r.reason||'-')}" — ${escapeHtml(r.by)}</div>`).join('')}</div>` : ''}
+          </div>
+          <div class="award-bonus">${i===0 && !open ? '$' + EOM_BONUS : ''}</div>
+        </div>
+      `).join('');
+
+  // 자동 점수 (참고)
+  const autoCands = getEOMCandidates(store, m).slice(0, 5);
+  const autoHtml = autoCands.length === 0
+    ? `<div class="muted small" style="padding:0.5rem;">${tx.noAuto}</div>`
+    : autoCands.map((c, i) => `
+        <div class="award-row">
+          <span class="award-rank">${i+1}</span>
           <div class="award-body">
             <b>${escapeHtml(c.name)}</b>
             <div class="muted small">${tx.deptCount} ${c.deptCount} · ${tx.avgScore} ${c.avgScore} · ×${c.diversityMultiplier}</div>
           </div>
           <div class="award-bonus muted">${c.finalScore}</div>
         </div>
-      `).join('')}
-    </div>
-  ` : '';
+      `).join('');
+
+  // 추천 폼
+  let formHtml = '';
+  if (!canNominate) {
+    formHtml = `<div class="muted small" style="padding:0.5rem;">${tx.cantNom}</div>`;
+  } else if (!open) {
+    formHtml = `<div class="muted small" style="padding:0.5rem;">${tx.closed}</div>`;
+  } else {
+    formHtml = `
+      <div class="muted small mb-1">${tx.nominateBy}</div>
+      ${myExisting ? `<div class="muted small mb-1">✓ ${lang==='ko'?'현재 추천':'Current'}: <b>${escapeHtml(myExisting.recommendee)}</b></div>` : ''}
+      <input id="eom-pick" class="input" placeholder="${tx.pickPh}" value="${myExisting?escapeHtml(myExisting.recommendee):''}">
+      <textarea id="eom-reason" class="textarea mt-1" rows="3" placeholder="${tx.reasonPh}">${myExisting?escapeHtml(myExisting.reason||''):''}</textarea>
+      <button class="btn btn-primary btn-block btn-lg mt-1" onclick="submitEOMNomination('${m}')">${myExisting?tx.update:tx.submit}</button>
+    `;
+  }
 
   return `
     <button class="btn btn-sm" onclick="goBack()">← ${escapeHtml(L('btn_back'))}</button>
     <h2 class="mt-2">${tx.title}</h2>
     <div class="muted small mb-2">${tx.sub}</div>
+    <div class="${open?'eom-status-open':'eom-status-closed'}">${open?tx.open:tx.closed}</div>
+
     ${winnerHtml}
-    ${runnersHtml}
+
+    <div class="card mt-2">
+      <h3>${tx.sectionVotes}</h3>
+      ${votesHtml}
+    </div>
+
+    <div class="card mt-2">
+      <h3>${tx.sectionForm}</h3>
+      ${formHtml}
+    </div>
+
+    <div class="card mt-2 manual-ref-card-eom">
+      <h4 style="margin:0 0 0.5rem;font-size:0.85rem;color:#6b7280;">${tx.sectionAuto}</h4>
+      ${autoHtml}
+    </div>
   `;
+}
+
+function submitEOMNomination(month) {
+  const pick = (document.getElementById('eom-pick')||{}).value || '';
+  const reason = (document.getElementById('eom-reason')||{}).value || '';
+  const r = addEOMNomination(month, state.settings.store, pick.trim(), reason);
+  const lang = state.settings.lang || 'ko';
+  if (!r.ok) {
+    const msgs = {
+      closed: lang==='ko'?'추천 마감됨':'Closed',
+      no_recommendee: lang==='ko'?'추천할 직원 이름을 입력하세요':'Enter employee name',
+      no_permission: lang==='ko'?'추천 권한이 없습니다':'No permission'
+    };
+    toast(msgs[r.error] || 'Error', 'error');
+    return;
+  }
+  toast(lang==='ko'?'✅ 추천 완료':'✅ Nominated', 'success');
+  render();
 }
 
 // ============================================================

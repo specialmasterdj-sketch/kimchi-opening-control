@@ -2063,6 +2063,29 @@ a.link:hover { text-decoration: underline; }
   font-size: 0.95rem;
   color: #92400e;
 }
+.eom-status-open {
+  display: inline-block;
+  padding: 0.4rem 0.75rem;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  border-radius: 0.4rem;
+  color: #15803d;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+.eom-status-closed {
+  display: inline-block;
+  padding: 0.4rem 0.75rem;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 0.4rem;
+  color: #b91c1c;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+.manual-ref-card-eom { background: #fafafa; border: 1px dashed #d1d5db; opacity: 0.85; }
 
 /* 헤더 로고 */
 .app-logo {
