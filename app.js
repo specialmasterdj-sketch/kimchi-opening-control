@@ -461,6 +461,8 @@ function renderViewBody() {
     case 'manager-report':       return viewManagerReport();
     case 'achievement-snapshot': return viewAchievementSnapshot();
     case 'owner-overview':       return viewOwnerOverview();
+    case 'dept-awards':          return viewDeptAwards(currentParams.month);
+    case 'eom':                  return viewEOM(currentParams.month);
     case 'final-approval':       return viewFinalApproval();
     case 'report':               return viewReport();
     case 'report-dept':          return viewReportDept(currentParams.deptId);
@@ -3776,6 +3778,249 @@ function onSettleRewardsClick() {
 }
 
 // ============================================================
+//  부문별 업무왕 (월간 1-3등 + streak 보너스)
+// ============================================================
+
+const AWARD_BONUS = { 1: 200, 2: 100, 3: 50, streak: 100 }; // USD
+
+// 월(YYYY-MM)에 해당하는 task들 모음
+function getTasksInMonth(month, store, deptId) {
+  const result = [];
+  Object.keys(state.assignments || {}).forEach(date => {
+    if (!date.startsWith(month)) return;
+    (state.assignments[date] || []).forEach(t => {
+      if (t.store !== store) return;
+      if (deptId && t.department !== deptId) return;
+      result.push(t);
+    });
+  });
+  return result;
+}
+
+// 직원별 부문별 월간 통계
+function getEmployeeDeptStats(name, store, deptId, month) {
+  if (!name) return null;
+  const tasks = getTasksInMonth(month, store, deptId);
+  let myItems = 0, myWithPhoto = 0, myOnTime = 0, myFinishes = 0, totalScore = 0;
+  tasks.forEach(t => {
+    const def = KMOCS.SHIFTS[t.shift];
+    const dlMs = def && def.deadlineHour !== undefined
+      ? new Date(t.date + 'T' + String(def.deadlineHour).padStart(2,'0') + ':' + String(def.deadlineMin).padStart(2,'0') + ':00').getTime()
+      : null;
+    (t.checklist || []).forEach(it => {
+      if (it.completedByName !== name) return;
+      myItems++;
+      if (it.photos && it.photos.length > 0) myWithPhoto++;
+      if (dlMs && it.completedAt && it.completedAt <= dlMs) myOnTime++;
+    });
+    if (t.finishedByName === name) myFinishes++;
+  });
+  // 점수: 항목 1점 + 사진 0.5점 + 데드라인내 0.5점 + 마무리 2점
+  totalScore = myItems + (myWithPhoto * 0.5) + (myOnTime * 0.5) + (myFinishes * 2);
+  return {
+    name,
+    store,
+    deptId,
+    month,
+    items: myItems,
+    photos: myWithPhoto,
+    onTime: myOnTime,
+    finishes: myFinishes,
+    score: Math.round(totalScore * 10) / 10
+  };
+}
+
+// 부문별 1-3등 산정 (직원 list)
+function rankEmployeesByDept(store, deptId, month) {
+  const tasks = getTasksInMonth(month, store, deptId);
+  // 활동한 직원 모음
+  const names = new Set();
+  tasks.forEach(t => {
+    (t.checklist || []).forEach(it => { if (it.completedByName) names.add(it.completedByName); });
+    if (t.finishedByName) names.add(t.finishedByName);
+  });
+  const stats = Array.from(names)
+    .map(n => getEmployeeDeptStats(n, store, deptId, month))
+    .filter(s => s && s.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return stats.slice(0, 3); // 1-3등
+}
+
+// 연속 streak 횟수 (해당 직원이 해당 부문 매장에서 1-3위에 든 연속 월 수)
+function getStreakCount(name, store, deptId) {
+  let streak = 0;
+  for (let i = 0; i < 12; i++) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const month = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const top3 = rankEmployeesByDept(store, deptId, month);
+    if (top3.some(s => s.name === name)) {
+      streak++;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+// 보너스 계산 ($200/$100/$50 + streak ≥3 시 +$100)
+function calcBonus(rank, streak) {
+  const base = AWARD_BONUS[rank] || 0;
+  const streakBonus = streak >= 3 ? AWARD_BONUS.streak : 0;
+  return { base, streakBonus, total: base + streakBonus };
+}
+
+function viewDeptAwards(month) {
+  const lang = state.settings.lang || 'ko';
+  const store = state.settings.store;
+  const m = month || (new Date()).toISOString().slice(0, 7); // YYYY-MM
+  const tx = {
+    title: lang==='ko'?`🏆 부문별 업무왕 — ${m}`:lang==='es'?`🏆 Empleados Top — ${m}`:`🏆 Department Top Performers — ${m}`,
+    sub:   lang==='ko'?`${store} 매장 / 1등 $${AWARD_BONUS[1]} · 2등 $${AWARD_BONUS[2]} · 3등 $${AWARD_BONUS[3]} · 3개월 연속 +$${AWARD_BONUS.streak}`:`${store} / 1st $${AWARD_BONUS[1]} · 2nd $${AWARD_BONUS[2]} · 3rd $${AWARD_BONUS[3]} · 3-mo streak +$${AWARD_BONUS.streak}`,
+    noData:lang==='ko'?'활동 없음':'No activity',
+    rankTxt: ['🥇', '🥈', '🥉']
+  };
+
+  const blocks = KMOCS.DEPARTMENTS.map(d => {
+    const top3 = rankEmployeesByDept(store, d.id, m);
+    if (top3.length === 0) return '';
+    const rows = top3.map((s, i) => {
+      const rank = i + 1;
+      const streak = getStreakCount(s.name, store, d.id);
+      const bn = calcBonus(rank, streak);
+      const streakBadge = streak >= 3 ? `<span class="streak-badge">🔥 ${streak}연속 +$${AWARD_BONUS.streak}</span>` : (streak >= 2 ? `<span class="streak-near">${streak}연속</span>` : '');
+      return `
+        <div class="award-row">
+          <span class="award-rank">${tx.rankTxt[i]}</span>
+          <div class="award-body">
+            <b>${escapeHtml(s.name)}</b>
+            ${streakBadge}
+            <div class="muted small">항목 ${s.items} · 📷 ${s.photos} · ⏰ ${s.onTime} · 🏁 ${s.finishes}</div>
+          </div>
+          <div class="award-bonus">
+            <b>$${bn.total}</b>
+            ${bn.streakBonus > 0 ? `<div class="muted small">$${bn.base}+$${bn.streakBonus}</div>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+    return `
+      <div class="card mt-2">
+        <h3>${d.icon} ${escapeHtml(dn(d))}</h3>
+        ${rows}
+      </div>
+    `;
+  }).filter(Boolean).join('');
+
+  return `
+    <button class="btn btn-sm" onclick="goBack()">← ${escapeHtml(L('btn_back'))}</button>
+    <h2 class="mt-2">${tx.title}</h2>
+    <div class="muted small mb-2">${tx.sub}</div>
+    ${blocks || `<div class="empty"><div class="ico">📭</div><p>${tx.noData}</p></div>`}
+  `;
+}
+
+// ============================================================
+//  Employee of the Month (매장별 1명)
+//  점수 = (업무왕 점수 평균) × 부문 다양성 배수
+// ============================================================
+
+const EOM_BONUS = 50;
+
+function getEOMCandidates(store, month) {
+  // 매장의 모든 활동 직원 모음
+  const tasks = getTasksInMonth(month, store);
+  const names = new Set();
+  tasks.forEach(t => {
+    (t.checklist || []).forEach(it => { if (it.completedByName) names.add(it.completedByName); });
+    if (t.finishedByName) names.add(t.finishedByName);
+  });
+  // 각 직원의 부문별 점수 모음
+  const candidates = [];
+  names.forEach(name => {
+    const deptStats = KMOCS.DEPARTMENTS
+      .map(d => getEmployeeDeptStats(name, store, d.id, month))
+      .filter(s => s && s.score > 0);
+    if (deptStats.length === 0) return;
+    const avgScore = deptStats.reduce((a, s) => a + s.score, 0) / deptStats.length;
+    const diversity = deptStats.length; // 기여 부문 수
+    const diversityMultiplier = 1 + (diversity - 1) * 0.15; // 1부문 1.0 / 2부문 1.15 / 3부문 1.30 ...
+    const finalScore = Math.round(avgScore * diversityMultiplier * 10) / 10;
+    candidates.push({
+      name, store, month,
+      deptCount: diversity,
+      avgScore: Math.round(avgScore * 10) / 10,
+      diversityMultiplier: Math.round(diversityMultiplier * 100) / 100,
+      finalScore,
+      depts: deptStats.map(s => ({ deptId: s.deptId, score: s.score }))
+    });
+  });
+  candidates.sort((a, b) => b.finalScore - a.finalScore);
+  return candidates;
+}
+
+function viewEOM(month) {
+  const lang = state.settings.lang || 'ko';
+  const store = state.settings.store;
+  const m = month || (new Date()).toISOString().slice(0, 7);
+  const tx = {
+    title: lang==='ko'?`🌟 Employee of the Month — ${m}`:`🌟 Employee of the Month — ${m}`,
+    sub:   lang==='ko'?`${store} 매장 / 1위 $${EOM_BONUS} · 점수 = 부문 평균 × 다양성 배수`:`${store} / 1st $${EOM_BONUS}`,
+    noData:lang==='ko'?'활동 없음':'No activity',
+    runners:lang==='ko'?'준 우승':'Runners-up',
+    deptCount:lang==='ko'?'기여 부문':'Depts',
+    avgScore:lang==='ko'?'평균 점수':'Avg score',
+    multi:lang==='ko'?'다양성 배수':'Diversity'
+  };
+
+  const cands = getEOMCandidates(store, m);
+  if (cands.length === 0) {
+    return `
+      <button class="btn btn-sm" onclick="goBack()">← ${escapeHtml(L('btn_back'))}</button>
+      <h2 class="mt-2">${tx.title}</h2>
+      <div class="muted small mb-2">${tx.sub}</div>
+      <div class="empty"><div class="ico">📭</div><p>${tx.noData}</p></div>
+    `;
+  }
+  const winner = cands[0];
+  const runners = cands.slice(1, 4);
+  const winnerHtml = `
+    <div class="eom-winner">
+      <div class="eom-crown">👑</div>
+      <h3 class="eom-name">${escapeHtml(winner.name)}</h3>
+      <div class="eom-bonus">$${EOM_BONUS}</div>
+      <div class="eom-stats">
+        ${tx.deptCount} <b>${winner.deptCount}</b> · ${tx.avgScore} <b>${winner.avgScore}</b> · ${tx.multi} <b>×${winner.diversityMultiplier}</b>
+      </div>
+      <div class="eom-final">최종 점수 <b>${winner.finalScore}</b></div>
+    </div>
+  `;
+  const runnersHtml = runners.length > 0 ? `
+    <div class="card mt-2">
+      <h3>${tx.runners}</h3>
+      ${runners.map((c, i) => `
+        <div class="award-row">
+          <span class="award-rank">${['🥈','🥉','4️⃣'][i]}</span>
+          <div class="award-body">
+            <b>${escapeHtml(c.name)}</b>
+            <div class="muted small">${tx.deptCount} ${c.deptCount} · ${tx.avgScore} ${c.avgScore} · ×${c.diversityMultiplier}</div>
+          </div>
+          <div class="award-bonus muted">${c.finalScore}</div>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
+  return `
+    <button class="btn btn-sm" onclick="goBack()">← ${escapeHtml(L('btn_back'))}</button>
+    <h2 class="mt-2">${tx.title}</h2>
+    <div class="muted small mb-2">${tx.sub}</div>
+    ${winnerHtml}
+    ${runnersHtml}
+  `;
+}
+
+// ============================================================
 //  오너 모니터링 (A형: 6 매장 카드 아코디언)
 // ============================================================
 
@@ -3873,6 +4118,23 @@ function viewOwnerOverview() {
     <h2>${tt.title}</h2>
     <div class="muted small mb-2">${fmtDateKor(date)}</div>
     <div class="overview-list">${cards}</div>
+
+    <div class="award-entry-row">
+      <button class="award-entry-btn dept" onclick="navigate('dept-awards')">
+        <span class="award-icon">🏆</span>
+        <div>
+          <div class="award-title">${lang==='ko'?'부문별 업무왕':lang==='es'?'Top por Depto':'Department Top'}</div>
+          <div class="award-desc">${lang==='ko'?`이달의 1-3등 ($200/$100/$50)`:`Monthly 1-3rd`}</div>
+        </div>
+      </button>
+      <button class="award-entry-btn eom" onclick="navigate('eom')">
+        <span class="award-icon">🌟</span>
+        <div>
+          <div class="award-title">${lang==='ko'?'Employee of the Month':'Employee of the Month'}</div>
+          <div class="award-desc">${lang==='ko'?`매장 1위 ($${EOM_BONUS})`:`Store 1st ($${EOM_BONUS})`}</div>
+        </div>
+      </button>
+    </div>
   `;
 }
 

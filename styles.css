@@ -1972,6 +1972,98 @@ a.link:hover { text-decoration: underline; }
 .overview-dept-row:hover { background: #f3f4f6; }
 .overview-dept-name { flex: 1; font-weight: 700; font-size: 0.88rem; }
 
+/* 어워드 진입 버튼 (오너 모니터링 하단) */
+.award-entry-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+.award-entry-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0.6rem;
+  border: 2px solid;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.85rem;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.award-entry-btn:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,0.08); }
+.award-entry-btn.dept { background: #fef3c7; border-color: #fbbf24; color: #92400e; }
+.award-entry-btn.eom  { background: #ede9fe; border-color: #a78bfa; color: #5b21b6; }
+.award-icon { font-size: 1.6rem; }
+.award-title { font-weight: 800; font-size: 0.92rem; }
+.award-desc { font-size: 0.74rem; opacity: 0.85; margin-top: 0.1rem; }
+
+/* 부문별 업무왕 row */
+.award-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.4rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+.award-row:last-child { border-bottom: none; }
+.award-rank { font-size: 1.5rem; flex-shrink: 0; }
+.award-body { flex: 1; min-width: 0; }
+.award-bonus {
+  font-weight: 900;
+  font-size: 1.05rem;
+  color: #15803d;
+  text-align: right;
+  flex-shrink: 0;
+}
+.streak-badge {
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.3rem;
+  font-weight: 700;
+}
+.streak-near {
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+/* EOM 위너 카드 */
+.eom-winner {
+  margin-top: 1rem;
+  padding: 1.5rem 1rem;
+  text-align: center;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 3px solid #f59e0b;
+  border-radius: 0.8rem;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.25);
+}
+.eom-crown { font-size: 3rem; line-height: 1; }
+.eom-name {
+  margin: 0.5rem 0 0.3rem;
+  font-size: 1.4rem;
+  color: #92400e;
+}
+.eom-bonus {
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #15803d;
+  margin: 0.4rem 0;
+}
+.eom-stats {
+  font-size: 0.85rem;
+  color: #78350f;
+  margin: 0.5rem 0;
+}
+.eom-final {
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+  color: #92400e;
+}
+
 /* 헤더 로고 */
 .app-logo {
   display: block;
