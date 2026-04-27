@@ -641,20 +641,28 @@ function openNameModal() {
   const isFirst = !cur;
   const labels = {
     title:    lang==='ko'?(isFirst?'환영합니다 — 본인 이름을 입력해주세요':'이름 변경'):lang==='es'?(isFirst?'Bienvenido — ingresa tu nombre':'Cambiar nombre'):(isFirst?'Welcome — please enter your name':'Change name'),
-    desc:     lang==='ko'?'이 이름은 모든 지시·답변·체크 기록에 남습니다. 스케줄표에서 본인을 선택하거나 직접 입력하세요.':lang==='es'?'Este nombre se registra en todas las acciones. Selecciona del horario o escribe.':'This name will be recorded on all actions. Pick from the schedule or type.',
+    desc:     lang==='ko'?'이 이름은 모든 지시·답변·체크 기록에 남습니다. 본인 지점을 고르고 스케줄에서 본인을 선택하세요.':lang==='es'?'Este nombre se registra en todas las acciones. Elige tu tienda y selecciona del horario.':'This name will be recorded on all actions. Pick your store and select yourself from the schedule.',
     ph:       lang==='ko'?'또는 직접 입력 (예: 김철수)':lang==='es'?'o escribe (ej: Juan Pérez)':'or type (e.g., John Smith)',
     pickPh:   lang==='ko'?'— 스케줄에서 선택 —':lang==='es'?'— Selecciona del horario —':'— Pick from schedule —',
+    storeLbl: lang==='ko'?'지점':lang==='es'?'Tienda':'Store',
     save:     lang==='ko'?'저장':lang==='es'?'Guardar':'Save',
     cancel:   lang==='ko'?'취소':lang==='es'?'Cancelar':'Cancel',
     loading:  lang==='ko'?'스케줄 로드 중…':lang==='es'?'Cargando…':'Loading…'
   };
   const host = document.getElementById('modal-host');
   if (!host) return;
+  const stores = (typeof KMOCS !== 'undefined' && Array.isArray(KMOCS.STORES)) ? KMOCS.STORES : ['Miami','Pembroke Pines','Hollywood','Coral Springs','Las Olas','West Palm Beach'];
+  const curStore = state.settings.store || stores[0];
+  const storeOptions = stores.map(s => `<option value="${escapeHtml(s)}"${s===curStore?' selected':''}>${escapeHtml(s)}</option>`).join('');
   host.innerHTML = `
     <div class="modal-backdrop" onclick="if(event.target===this){closeNameModal()}">
       <div class="modal-card welcome-modal">
         <h2>${escapeHtml(labels.title)}</h2>
         <p class="muted small mt-1 mb-2">${escapeHtml(labels.desc)}</p>
+        <label class="muted small" style="display:block;margin-bottom:4px">📍 ${escapeHtml(labels.storeLbl)}</label>
+        <select id="welcome-store-select" class="input" style="margin-bottom:0.6rem" onchange="onStoreChangeInModal(this.value)">
+          ${storeOptions}
+        </select>
         <select id="welcome-name-select" class="input" style="margin-bottom:0.5rem" onchange="onNameSelect(this)">
           <option value="">${escapeHtml(labels.loading)}</option>
         </select>
@@ -666,32 +674,7 @@ function openNameModal() {
       </div>
     </div>
   `;
-  // Populate dropdown from schedule
-  loadScheduleEmployees(state.settings.store).then(emps => {
-    const sel = document.getElementById('welcome-name-select');
-    if (!sel) return;
-    if (!emps.length) {
-      sel.innerHTML = `<option value="">${escapeHtml(labels.pickPh)}</option>`;
-      sel.disabled = true;
-      return;
-    }
-    // Group by role
-    const grouped = {};
-    emps.forEach(e => {
-      const role = (e.role || 'OTHER').toUpperCase();
-      (grouped[role] = grouped[role] || []).push(e);
-    });
-    let html = `<option value="">${escapeHtml(labels.pickPh)}</option>`;
-    Object.entries(grouped).forEach(([role, list]) => {
-      html += `<optgroup label="${escapeHtml(role)}">`;
-      list.forEach(e => {
-        const isSel = e.name === cur ? ' selected' : '';
-        html += `<option value="${escapeHtml(e.name)}"${isSel}>${escapeHtml(e.name)}</option>`;
-      });
-      html += `</optgroup>`;
-    });
-    sel.innerHTML = html;
-  });
+  populateNameDropdown(curStore, cur, labels);
   setTimeout(() => {
     const input = document.getElementById('welcome-name-input');
     if (input) {
@@ -707,6 +690,43 @@ function onNameSelect(sel){
   if (!v) return;
   const input = document.getElementById('welcome-name-input');
   if (input) input.value = v;
+}
+function onStoreChangeInModal(store){
+  const lang = state.settings.lang || 'ko';
+  const labels = {
+    pickPh:  lang==='ko'?'— 스케줄에서 선택 —':lang==='es'?'— Selecciona del horario —':'— Pick from schedule —',
+    loading: lang==='ko'?'스케줄 로드 중…':lang==='es'?'Cargando…':'Loading…'
+  };
+  const sel = document.getElementById('welcome-name-select');
+  if (sel) { sel.innerHTML = `<option value="">${escapeHtml(labels.loading)}</option>`; sel.disabled = false; }
+  populateNameDropdown(store, '', labels);
+}
+function populateNameDropdown(store, cur, labels){
+  loadScheduleEmployees(store).then(emps => {
+    const sel = document.getElementById('welcome-name-select');
+    if (!sel) return;
+    if (!emps.length) {
+      sel.innerHTML = `<option value="">${escapeHtml(labels.pickPh)}</option>`;
+      sel.disabled = true;
+      return;
+    }
+    const grouped = {};
+    emps.forEach(e => {
+      const role = (e.role || 'OTHER').toUpperCase();
+      (grouped[role] = grouped[role] || []).push(e);
+    });
+    let html = `<option value="">${escapeHtml(labels.pickPh)}</option>`;
+    Object.entries(grouped).forEach(([role, list]) => {
+      html += `<optgroup label="${escapeHtml(role)}">`;
+      list.forEach(e => {
+        const isSel = e.name === cur ? ' selected' : '';
+        html += `<option value="${escapeHtml(e.name)}"${isSel}>${escapeHtml(e.name)}</option>`;
+      });
+      html += `</optgroup>`;
+    });
+    sel.innerHTML = html;
+    sel.disabled = false;
+  });
 }
 function closeNameModal() {
   const host = document.getElementById('modal-host');
