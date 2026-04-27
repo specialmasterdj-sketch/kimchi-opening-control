@@ -615,16 +615,38 @@ function renderHeader() {
 }
 
 // ===== 이름 입력 모달 =====
+// Maps the human store names used in this app to the Firebase branch IDs used
+// by the kimchi-mart-order RTDB (schedules/{branch}/employees).
+const STORE_TO_BRANCH = {
+  'Miami':            'MIAMI',
+  'Pembroke Pines':   'PEMBROKE_PINES',
+  'Hollywood':        'HOLLYWOOD',
+  'Coral Springs':    'CORAL_SPRINGS',
+  'Las Olas':         'LASOLAS',
+  'West Palm Beach':  'WEST_PALM',
+};
+async function loadScheduleEmployees(store){
+  const branch = STORE_TO_BRANCH[store];
+  if (!branch) return [];
+  try {
+    const r = await fetch(`https://kimchi-mart-order-default-rtdb.firebaseio.com/schedules/${branch}.json`);
+    const data = await r.json();
+    if (!data || !Array.isArray(data.employees)) return [];
+    return data.employees;
+  } catch(e) { return []; }
+}
 function openNameModal() {
   const lang = state.settings.lang || 'ko';
   const cur = state.settings.myName || '';
   const isFirst = !cur;
   const labels = {
     title:    lang==='ko'?(isFirst?'환영합니다 — 본인 이름을 입력해주세요':'이름 변경'):lang==='es'?(isFirst?'Bienvenido — ingresa tu nombre':'Cambiar nombre'):(isFirst?'Welcome — please enter your name':'Change name'),
-    desc:     lang==='ko'?'이 이름은 모든 지시·답변·체크 기록에 남습니다. 정확한 이름을 입력해주세요.':lang==='es'?'Este nombre se registra en todas las acciones.':'This name will be recorded on all actions you take.',
-    ph:       lang==='ko'?'예: 김철수':lang==='es'?'ej: Juan Pérez':'e.g., John Smith',
+    desc:     lang==='ko'?'이 이름은 모든 지시·답변·체크 기록에 남습니다. 스케줄표에서 본인을 선택하거나 직접 입력하세요.':lang==='es'?'Este nombre se registra en todas las acciones. Selecciona del horario o escribe.':'This name will be recorded on all actions. Pick from the schedule or type.',
+    ph:       lang==='ko'?'또는 직접 입력 (예: 김철수)':lang==='es'?'o escribe (ej: Juan Pérez)':'or type (e.g., John Smith)',
+    pickPh:   lang==='ko'?'— 스케줄에서 선택 —':lang==='es'?'— Selecciona del horario —':'— Pick from schedule —',
     save:     lang==='ko'?'저장':lang==='es'?'Guardar':'Save',
-    cancel:   lang==='ko'?'취소':lang==='es'?'Cancelar':'Cancel'
+    cancel:   lang==='ko'?'취소':lang==='es'?'Cancelar':'Cancel',
+    loading:  lang==='ko'?'스케줄 로드 중…':lang==='es'?'Cargando…':'Loading…'
   };
   const host = document.getElementById('modal-host');
   if (!host) return;
@@ -633,6 +655,9 @@ function openNameModal() {
       <div class="modal-card welcome-modal">
         <h2>${escapeHtml(labels.title)}</h2>
         <p class="muted small mt-1 mb-2">${escapeHtml(labels.desc)}</p>
+        <select id="welcome-name-select" class="input" style="margin-bottom:0.5rem" onchange="onNameSelect(this)">
+          <option value="">${escapeHtml(labels.loading)}</option>
+        </select>
         <input id="welcome-name-input" class="input" placeholder="${labels.ph}" value="${escapeHtml(cur)}" autofocus>
         <div class="row" style="gap:0.5rem;margin-top:0.8rem;">
           <button class="btn btn-success" style="flex:1;" onclick="saveNameFromModal()">${escapeHtml(labels.save)}</button>
@@ -641,7 +666,32 @@ function openNameModal() {
       </div>
     </div>
   `;
-  // Enter로 저장
+  // Populate dropdown from schedule
+  loadScheduleEmployees(state.settings.store).then(emps => {
+    const sel = document.getElementById('welcome-name-select');
+    if (!sel) return;
+    if (!emps.length) {
+      sel.innerHTML = `<option value="">${escapeHtml(labels.pickPh)}</option>`;
+      sel.disabled = true;
+      return;
+    }
+    // Group by role
+    const grouped = {};
+    emps.forEach(e => {
+      const role = (e.role || 'OTHER').toUpperCase();
+      (grouped[role] = grouped[role] || []).push(e);
+    });
+    let html = `<option value="">${escapeHtml(labels.pickPh)}</option>`;
+    Object.entries(grouped).forEach(([role, list]) => {
+      html += `<optgroup label="${escapeHtml(role)}">`;
+      list.forEach(e => {
+        const isSel = e.name === cur ? ' selected' : '';
+        html += `<option value="${escapeHtml(e.name)}"${isSel}>${escapeHtml(e.name)}</option>`;
+      });
+      html += `</optgroup>`;
+    });
+    sel.innerHTML = html;
+  });
   setTimeout(() => {
     const input = document.getElementById('welcome-name-input');
     if (input) {
@@ -651,6 +701,12 @@ function openNameModal() {
       });
     }
   }, 50);
+}
+function onNameSelect(sel){
+  const v = sel.value;
+  if (!v) return;
+  const input = document.getElementById('welcome-name-input');
+  if (input) input.value = v;
 }
 function closeNameModal() {
   const host = document.getElementById('modal-host');
