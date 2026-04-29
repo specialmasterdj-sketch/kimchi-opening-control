@@ -9,6 +9,7 @@ const STORAGE_KEY_V1 = 'kmocs.state.v1';
 let state = loadState();
 let currentView = 'login';
 let currentParams = {};
+let _pendingByDept = {}; // precomputed once per render — avoids O(n³) in renderManualHub
 let _assignChecklist = [];
 
 // ===== STATE MGMT =====
@@ -452,7 +453,7 @@ function goBack() {
     render();
     window.scrollTo(0, 0);
   } else {
-    location.href = 'https://specialmasterdj-sketch.github.io/kfood-guide/hub.html';
+    location.href = 'https://specialmasterdj-sketch.github.io/kfood-guide/apps.html';
   }
 }
 function navigate(view, params = {}) {
@@ -526,8 +527,23 @@ function toggleMyOnly() {
   render();
 }
 
+// ===== PRECOMPUTE PENDING COUNTS =====
+function computePendingByDept() {
+  const date = todayISO();
+  const store = state.settings.store;
+  const sh = activeShift();
+  _pendingByDept = {};
+  (state.assignments[date] || []).forEach(t => {
+    if (t.store !== store || t.shift !== sh) return;
+    (t.checklist || []).forEach(it => {
+      if (!it.completedAt) _pendingByDept[t.department] = (_pendingByDept[t.department] || 0) + 1;
+    });
+  });
+}
+
 // ===== RENDER =====
 function render() {
+  computePendingByDept();
   renderHeader();
   const main = document.getElementById('app-main');
   let body = '';
@@ -537,6 +553,9 @@ function render() {
     body = renderTopNav() + renderShiftToggle() + renderViewBody();
   }
   main.innerHTML = body;
+  main.classList.remove('km-entering');
+  void main.offsetWidth;
+  main.classList.add('km-entering');
   renderBottomNav();
 }
 function renderViewBody() {
@@ -3629,17 +3648,7 @@ function renderManualHub() {
     const hasManual = g.manuals && g.manuals.length > 0;
     const deptIds = g.deptIds || [];
     // 미완료 항목 수 (현재 매장 + 시프트 + 그 그룹의 부문들)
-    let pending = 0;
-    deptIds.forEach(did => {
-      const tasks = (state.assignments[date] || []).filter(t =>
-        t.store === store && t.shift === sh && t.department === did
-      );
-      tasks.forEach(t => {
-        (t.checklist || []).forEach(it => {
-          if (!it.completedAt) pending++;
-        });
-      });
-    });
+    const pending = deptIds.reduce((sum, did) => sum + (_pendingByDept[did] || 0), 0);
     const pendingBadge = pending > 0
       ? `<span class="hub-pending-badge" title="${lang==='ko'?'미완료':'Pending'}">${pending}</span>`
       : '';
