@@ -819,10 +819,25 @@ a.link:hover { text-decoration: underline; }
 }
 #app-header .top-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 0.5rem;
 }
+.hdr-back {
+  background: rgba(255,255,255,0.2);
+  border: 1.5px solid rgba(255,255,255,0.45);
+  color: #fff;
+  border-radius: 50%;
+  width: 34px; height: 34px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: background .15s;
+}
+.hdr-back:hover { background: rgba(255,255,255,0.35); }
 #app-header .control-row {
   display: flex;
   align-items: center;

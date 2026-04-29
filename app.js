@@ -441,6 +441,20 @@ function closeLightbox() {
 // ===== ROUTING =====
 let _navStack = []; // 뒤로가기용 (앱 내부 + 브라우저 ←)
 let _suppressPush = false;
+const HOME_VIEWS = ['manager-dashboard','supervisor-dashboard','employee-dashboard','owner-overview','login'];
+function goBack() {
+  if (_navStack.length > 1) {
+    _navStack.pop();
+    const prev = _navStack[_navStack.length - 1];
+    currentView = prev.view;
+    currentParams = prev.params || {};
+    try { window.history.back(); } catch(e) {}
+    render();
+    window.scrollTo(0, 0);
+  } else {
+    location.href = 'https://specialmasterdj-sketch.github.io/kfood-guide/hub.html';
+  }
+}
 function navigate(view, params = {}) {
   // 같은 화면 중복 push 방지
   const top = _navStack[_navStack.length - 1];
@@ -595,8 +609,13 @@ function renderHeader() {
           lang==='ko'?'이름 입력 필요':lang==='es'?'Ingresa tu nombre':'Enter your name'
         }</span>
       </button>`;
+  const isHome = HOME_VIEWS.includes(currentView);
+  const backHtml = isHome
+    ? `<a href="https://specialmasterdj-sketch.github.io/kfood-guide/hub.html" class="hdr-back" title="Hub">🏠</a>`
+    : `<button class="hdr-back" onclick="goBack()" title="Back">←</button>`;
   hdr.innerHTML = `
     <div class="top-row">
+      ${backHtml}
       <div class="title-row">
         <h1 class="app-title-h1">${escapeHtml(L('app_title'))}</h1>
         <span class="subtitle">${fmtDateKor(todayISO())}</span>
