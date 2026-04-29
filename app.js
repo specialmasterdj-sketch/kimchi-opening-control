@@ -611,7 +611,7 @@ function renderHeader() {
       </button>`;
   const isHome = HOME_VIEWS.includes(currentView);
   const backHtml = isHome
-    ? `<a href="https://specialmasterdj-sketch.github.io/kfood-guide/hub.html" class="hdr-back" title="Hub">🏠</a>`
+    ? `<a href="https://specialmasterdj-sketch.github.io/kfood-guide/apps.html" class="hdr-back" title="All Apps">←</a>`
     : `<button class="hdr-back" onclick="goBack()" title="Back">←</button>`;
   hdr.innerHTML = `
     <div class="top-row">
