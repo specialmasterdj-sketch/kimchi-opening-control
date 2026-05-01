@@ -778,6 +778,13 @@ function saveNameFromModal() {
     toast(lang==='ko'?'이름을 입력해주세요':'Enter your name', 'error');
     return;
   }
+  // 모달에서 선택한 지점을 메인 state.settings.store 에 반영 (헤더 dropdown 과 sync)
+  const storeSel = document.getElementById('welcome-store-select');
+  const newStore = storeSel && storeSel.value;
+  if (newStore && newStore !== state.settings.store) {
+    state.settings.store = newStore;
+    saveState();
+  }
   setMyName(val);
   closeNameModal();
   toast(lang==='ko'?`✅ ${val}님 환영합니다`:lang==='es'?`✅ ¡Bienvenido, ${val}!`:`✅ Welcome, ${val}!`, 'success');
