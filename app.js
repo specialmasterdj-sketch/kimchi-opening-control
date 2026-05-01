@@ -644,9 +644,6 @@ function renderHeader() {
       </div>
     </div>
     <div class="control-row">
-      <select class="store-select" onchange="setStore(this.value)">
-        ${KMOCS.STORES.map(s => `<option ${s===state.settings.store?'selected':''}>${escapeHtml(s)}</option>`).join('')}
-      </select>
       ${langSwitcherHtml()}
     </div>
   `;
