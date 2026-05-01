@@ -100,6 +100,8 @@ function isShiftLocked(date, shift) {
 }
 function saveState() {
   try {
+    // 마지막 활동 시각 — 4시간+ 비활성이면 init 에서 본인 확인 모달 자동 노출
+    if (state.settings) state.settings.lastActiveAt = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     if (window.KMOCS_FB && KMOCS_FB.isInitialized()) {
       KMOCS_FB.pushState(state);
@@ -521,6 +523,14 @@ function setMyName(name) {
   }
   render();
 }
+// 매장 공용 디바이스에서 빠른 사용자 전환 — 이름 비우고 모달 자동 노출
+function logoutUser() {
+  state.settings.myName = '';
+  saveState();
+  render();
+  setTimeout(() => openNameModal(), 50);
+}
+window.logoutUser = logoutUser;
 let _myOnlyFilter = false;
 function toggleMyOnly() {
   _myOnlyFilter = !_myOnlyFilter;
@@ -614,6 +624,11 @@ function renderHeader() {
                  :lang==='es'?'Tu nombre — habilita "Solo míos" y registra tu nombre'
                  :'Your name — enables "Mine only" and records your name on checks';
   // 사용자 정체성 pill — 이름 있으면 명확히, 없으면 빨강 깜빡 강조
+  // 이름 옆 ✕ 로그아웃 버튼 — 매장 공용 디바이스에서 다음 사용자가 빠르게 본인으로 전환
+  const logoutLbl = lang==='ko'?'다른 사용자':lang==='es'?'Cambiar usuario':'Switch user';
+  const logoutBtnHtml = myName
+    ? `<button class="user-logout-btn" onclick="logoutUser()" title="${escapeHtml(logoutLbl)}" style="background:#fff;border:1px solid #fecaca;color:#dc2626;width:28px;height:28px;border-radius:14px;font-size:.95em;font-weight:700;cursor:pointer;margin-left:4px;display:inline-flex;align-items:center;justify-content:center">✕</button>`
+    : '';
   const userPillHtml = myName
     ? `<button class="user-pill set" onclick="openNameModal()" title="${
         lang==='ko'?'이름 변경':lang==='es'?'Cambiar nombre':'Change name'
@@ -621,7 +636,7 @@ function renderHeader() {
         <span class="ico">👤</span>
         <span class="name">${escapeHtml(myName)}</span>
         <span class="caret">▾</span>
-      </button>`
+      </button>${logoutBtnHtml}`
     : `<button class="user-pill empty" onclick="openNameModal()">
         <span class="ico">⚠️</span>
         <span class="name">${
@@ -4673,6 +4688,11 @@ function carryOverPendingFromYesterday() {
 }
 
 async function init() {
+  // stale 판정은 saveState 호출 전에 보존 (saveState 가 lastActiveAt 자동 갱신하기 때문)
+  const _lastActiveAtBoot = state.settings.lastActiveAt || 0;
+  const STALE_MS = 4 * 3600 * 1000;
+  const isStale = state.settings.myName && (Date.now() - _lastActiveAtBoot > STALE_MS);
+
   cleanupOldData();
   carryOverPendingFromYesterday();
   // 로그인 페이지 폐지 — 자동 default user (owner) 진입.
@@ -4685,8 +4705,8 @@ async function init() {
     }
     saveState();
   }
-  // 첫 진입 시 본인 이름 입력 강제
-  if (!state.settings.myName) {
+  // 첫 진입 또는 4시간+ 비활성 (다른 사용자가 디바이스 잡고 있을 가능성) → 본인 확인 모달
+  if (!state.settings.myName || isStale) {
     setTimeout(() => openNameModal(), 400);
   }
 
